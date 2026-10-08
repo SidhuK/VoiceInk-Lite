@@ -16,7 +16,7 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "E11473AF2CBE0F0A00318EE4"
-               BuildableName = "VoiceInk.app"
+               BuildableName = "VoiceInk Lite.app"
                BlueprintName = "VoiceInk"
                ReferencedContainer = "container:VoiceInk.xcodeproj">
             </BuildableReference>
@@ -30,32 +30,10 @@
       shouldUseLaunchSchemeArgsEnv = "YES"
       shouldAutocreateTestPlan = "YES">
       <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E11473C22CBE0F0B00318EE4"
-               BuildableName = "VoiceInkTests.xctest"
-               BlueprintName = "VoiceInkTests"
-               ReferencedContainer = "container:VoiceInk.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E11473CC2CBE0F0B00318EE4"
-               BuildableName = "VoiceInkUITests.xctest"
-               BlueprintName = "VoiceInkUITests"
-               ReferencedContainer = "container:VoiceInk.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
    </TestAction>
    <LaunchAction
-      buildConfiguration = "Debug"
+      buildConfiguration = "Release"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       launchStyle = "0"
@@ -69,7 +47,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "E11473AF2CBE0F0A00318EE4"
-            BuildableName = "VoiceInk.app"
+            BuildableName = "VoiceInk Lite.app"
             BlueprintName = "VoiceInk"
             ReferencedContainer = "container:VoiceInk.xcodeproj">
          </BuildableReference>
@@ -86,7 +64,7 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "E11473AF2CBE0F0A00318EE4"
-            BuildableName = "VoiceInk.app"
+            BuildableName = "VoiceInk Lite.app"
             BlueprintName = "VoiceInk"
             ReferencedContainer = "container:VoiceInk.xcodeproj">
          </BuildableReference>

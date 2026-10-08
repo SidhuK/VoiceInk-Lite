@@ -17,15 +17,12 @@ struct VoiceInkApp: App {
     @StateObject private var transcriptionModelManager: TranscriptionModelManager
     @StateObject private var recorderUIManager: RecorderUIManager
     @StateObject private var recordingShortcutManager: RecordingShortcutManager
-    @StateObject private var updaterViewModel: UpdaterViewModel
     @StateObject private var menuBarManager: MenuBarManager
     @StateObject private var mainWindowNavigation = MainWindowNavigation.shared
     @StateObject private var aiService = AIService()
     @StateObject private var enhancementService: AIEnhancementService
-    @StateObject private var licenseViewModel = LicenseViewModel.shared
     @StateObject private var activeWindowService = ActiveWindowService.shared
     @AppStorage(OnboardingSettings.completedV2Key) private var hasCompletedOnboardingV2 = false
-    @AppStorage("enableAnnouncements") private var enableAnnouncements = true
     @State private var showMenuBarIcon = true
     @State private var didShowLaunchReminders = false
 
@@ -45,11 +42,9 @@ struct VoiceInkApp: App {
         URLCache.shared = URLCache(memoryCapacity: 0, diskCapacity: 0)
 
         AppDefaults.registerDefaults()
-        AppLanguagePreference.applyStored()
         AppAppearancePreference.applyStored()
-        OnboardingV2Migration.prepareIfNeeded()
 
-        let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "Initialization")
+        let logger = Logger(subsystem: "com.karat.VoiceInkLite", category: "Initialization")
         // Keep existing model order stable; append new models after synced entities.
         let schema = Schema([
             Transcription.self,
@@ -99,11 +94,8 @@ struct VoiceInkApp: App {
         _aiService = StateObject(wrappedValue: aiService)
         aiService.refreshOllamaAvailabilityInBackground()
         Task { @MainActor in
-            await aiService.fetchOpenRouterModelsIfNeededForMigration()
+            await aiService.fetchOpenRouterModelsIfNeeded()
         }
-
-        let updaterViewModel = UpdaterViewModel()
-        _updaterViewModel = StateObject(wrappedValue: updaterViewModel)
 
         let enhancementService = AIEnhancementService(aiService: aiService, modelContext: resolvedContainer.mainContext)
         _enhancementService = StateObject(wrappedValue: enhancementService)
@@ -117,7 +109,7 @@ struct VoiceInkApp: App {
 
         // 1. Create modelsDirectory URL
         let appSupportDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("com.prakashjoshipax.VoiceInk")
+            .appendingPathComponent("com.karat.VoiceInkLite")
         let modelsDirectory = appSupportDirectory.appendingPathComponent("WhisperModels")
 
         // 2. Create model managers
@@ -144,8 +136,7 @@ struct VoiceInkApp: App {
         engine.recorderUIManager = recorderUIManager
 
         // 6. Initialize model state
-        // Migration and refreshAllAvailableModels must run before loadCurrentTranscriptionModel so renamed keys are remapped and imported models are present when restoring the saved selection.
-        StreamingKeysMigration.run()
+        // refreshAllAvailableModels must run before loadCurrentTranscriptionModel so imported models are present when restoring the saved selection.
         whisperModelManager.createModelsDirectoryIfNeeded()
         whisperModelManager.loadAvailableModels()
         transcriptionModelManager.refreshAllAvailableModels()
@@ -184,17 +175,7 @@ struct VoiceInkApp: App {
 
         AppShortcuts.updateAppShortcutParameters()
 
-        let statsMigrationTask = SessionMetricMigrationService.shared.runStatsMigrationIfNeeded(
-            modelContainer: resolvedContainer)
-        let mainContext = resolvedContainer.mainContext
-        Task { @MainActor in
-            await statsMigrationTask?.value
-            TranscriptionAutoCleanupService.shared.startMonitoring(modelContext: mainContext)
-
-            let tokenBackfillTask = SessionMetricMigrationService.shared.runEnhancementTokenBackfillIfNeeded(
-                modelContainer: resolvedContainer)
-            await tokenBackfillTask?.value
-        }
+        TranscriptionAutoCleanupService.shared.startMonitoring(modelContext: resolvedContainer.mainContext)
     }
 
     // MARK: - Container Creation Helpers
@@ -225,7 +206,7 @@ struct VoiceInkApp: App {
 
     private static func createPersistentContainer(schema: Schema, logger: Logger) throws -> ModelContainer {
         let appSupportURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("com.prakashjoshipax.VoiceInk", isDirectory: true)
+            .appendingPathComponent("com.karat.VoiceInkLite", isDirectory: true)
 
         try? FileManager.default.createDirectory(at: appSupportURL, withIntermediateDirectories: true)
 
@@ -242,18 +223,11 @@ struct VoiceInkApp: App {
         )
 
         let dictionarySchema = Schema([VocabularyWord.self, WordReplacement.self])
-        // Dev shares the local stores but must never connect to CloudKit.
-        #if DEBUG || LOCAL_BUILD
-            let dictionaryCloudKit: ModelConfiguration.CloudKitDatabase = .none
-        #else
-            let dictionaryCloudKit: ModelConfiguration.CloudKitDatabase = .private(
-                "iCloud.com.prakashjoshipax.VoiceInk")
-        #endif
         let dictionaryConfig = ModelConfiguration(
             "dictionary",
             schema: dictionarySchema,
             url: dictionaryStoreURL,
-            cloudKitDatabase: dictionaryCloudKit
+            cloudKitDatabase: .none
         )
 
         let statsSchema = Schema([SessionMetric.self])
@@ -293,7 +267,7 @@ struct VoiceInkApp: App {
     }
 
     var body: some Scene {
-        Window("VoiceInk", id: AppWindowID.main) {
+        Window("VoiceInk Lite", id: AppWindowID.main) {
             Group {
                 if hasCompletedOnboardingV2 {
                     ContentView()
@@ -303,33 +277,13 @@ struct VoiceInkApp: App {
                         .environmentObject(transcriptionModelManager)
                         .environmentObject(recorderUIManager)
                         .environmentObject(recordingShortcutManager)
-                        .environmentObject(updaterViewModel)
                         .environmentObject(menuBarManager)
                         .environmentObject(mainWindowNavigation)
                         .environmentObject(aiService)
                         .environmentObject(enhancementService)
                         .modelContainer(container)
-                        .lazyChangeLogPresenter { isPresenting in
-                            if isPresenting {
-                                if enableAnnouncements {
-                                    AnnouncementsService.shared.stop()
-                                }
-                            } else {
-                                if enableAnnouncements {
-                                    AnnouncementsService.shared.start()
-                                }
-                                showLaunchRemindersIfNeeded()
-                            }
-                        }
                         .onAppear {
-                            if !ChangeLogManager.needsPresentation() {
-                                if enableAnnouncements {
-                                    AnnouncementsService.shared.start()
-                                }
-                                showLaunchRemindersIfNeeded()
-                            }
-
-                            GitHubStarPromptCoordinator.shared.scheduleIfNeeded(modelContainer: container)
+                            showLaunchRemindersIfNeeded()
 
                             // Run due audio-only cleanup and schedule future checks when transcript cleanup is not managing retention.
                             if !UserDefaults.standard.bool(forKey: CleanupSettingsKeys.isTranscriptionCleanupEnabled)
@@ -360,7 +314,6 @@ struct VoiceInkApp: App {
                             }
                         )
                         .onDisappear {
-                            AnnouncementsService.shared.stop()
                             whisperModelManager.unloadModel()
 
                             // Stop the automatic audio cleanup process
@@ -380,24 +333,12 @@ struct VoiceInkApp: App {
                             })
                 }
             }
-            .confettiCelebrationPresenter()
-            .onReceive(
-                LifecycleObserver.shared.publisher(
-                    for: [.applicationDidBecomeActive, .systemDidWake]
-                )
-            ) { _ in
-                licenseViewModel.refreshLicenseState()
-            }
         }
         .windowStyle(.hiddenTitleBar)
         .defaultSize(width: AppWindowLayout.width, height: AppWindowLayout.minimumHeight)
         .windowResizability(.contentSize)
         .commands {
             CommandGroup(replacing: .newItem) {}
-
-            CommandGroup(after: .appInfo) {
-                CheckForUpdatesView(updaterViewModel: updaterViewModel)
-            }
         }
 
         MenuBarExtra(isInserted: $showMenuBarIcon) {
@@ -410,7 +351,6 @@ struct VoiceInkApp: App {
                 .environmentObject(recordingShortcutManager)
                 .environmentObject(menuBarManager)
                 .environmentObject(mainWindowNavigation)
-                .environmentObject(updaterViewModel)
                 .environmentObject(aiService)
                 .environmentObject(enhancementService)
         } label: {
@@ -425,14 +365,6 @@ struct VoiceInkApp: App {
                 .background(MainWindowRequestBridge(menuBarManager: menuBarManager))
         }
         .menuBarExtraStyle(.menu)
-
-        #if DEBUG
-            WindowGroup("Debug") {
-                Button("Toggle Menu Bar Only") {
-                    menuBarManager.isMenuBarOnly.toggle()
-                }
-            }
-        #endif
     }
 
     /// Only one notification fits on screen, so show at most one launch reminder.

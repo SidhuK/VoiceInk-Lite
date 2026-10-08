@@ -277,6 +277,7 @@ struct DashboardStatsSummary: Codable, Equatable, Sendable {
     var lastThirtyDayPeakHours: DashboardPeakHoursSummary = .empty
     var thisYearPeakHours: DashboardPeakHoursSummary = .empty
     var allTimePeakHours: DashboardPeakHoursSummary = .empty
+    var usageOverview: DashboardUsageOverview = .empty
 }
 
 extension DashboardStatsSummary {
@@ -405,7 +406,7 @@ extension DashboardStatsSummary {
 }
 
 enum DashboardTimeSaving {
-    private static let averageTypingSpeedWordsPerMinute: Double = 40
+    static let averageTypingSpeedWordsPerMinute: Double = 40
 
     static func estimatedTypingTime(words: Int) -> TimeInterval {
         let estimatedTypingTimeInMinutes = Double(words) / averageTypingSpeedWordsPerMinute

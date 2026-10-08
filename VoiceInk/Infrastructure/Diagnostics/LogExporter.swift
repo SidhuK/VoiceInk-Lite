@@ -4,8 +4,8 @@ import OSLog
 final class LogExporter {
     static let shared = LogExporter()
 
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "LogExporter")
-    private let subsystem = "com.prakashjoshipax.voiceink"
+    private let logger = Logger(subsystem: "com.karat.VoiceInkLite", category: "LogExporter")
+    private let subsystem = "com.karat.VoiceInkLite"
     private let exportWindow: TimeInterval = 30 * 60
 
     private init() {

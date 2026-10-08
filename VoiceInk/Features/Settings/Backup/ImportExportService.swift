@@ -170,7 +170,6 @@ class ImportExportService {
             isMenuBarOnly: menuBarManager.isMenuBarOnly,
             recorderType: recorderUIManager.recorderPanelStyle.rawValue,
             appAppearancePreference: AppAppearancePreference.stored.rawValue,
-            appLanguagePreference: AppLanguagePreference.storedRawValue,
             isTranscriptionCleanupEnabled: UserDefaults.standard.bool(
                 forKey: CleanupSettingsKeys.isTranscriptionCleanupEnabled),
             transcriptionRetentionMinutes: UserDefaults.standard.integer(

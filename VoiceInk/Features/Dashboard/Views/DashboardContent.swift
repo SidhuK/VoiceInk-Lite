@@ -4,7 +4,7 @@ import SwiftUI
 import os
 
 struct DashboardContent: View {
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "DashboardContent")
+    private let logger = Logger(subsystem: "com.karat.VoiceInkLite", category: "DashboardContent")
     private static let fallbackDisplayName = String(localized: "there")
     private static let displayNameFontSize: CGFloat = 28
     private static let displayNameFontWeight: NSFont.Weight = .bold
@@ -18,8 +18,6 @@ struct DashboardContent: View {
     private static let automaticStatsRefreshMetricLimit = 2_000
     private static let statsRefreshDebounceNanoseconds: UInt64 = 750_000_000
     let modelContext: ModelContext
-    let licenseState: LicenseViewModel.LicenseState
-    let onAddLicenseKey: () -> Void
 
     @State private var statsSummary: DashboardStatsSummary = .empty
     @State private var hasLoadedStatsSnapshot: Bool = false
@@ -37,10 +35,7 @@ struct DashboardContent: View {
     @State private var isInsightsViewPresented = false
     @State private var selectedInsightPeriod: DashboardInsightPeriod = .allTime
     @State private var isAccessibilityEnabled = AXIsProcessTrusted()
-    @EnvironmentObject private var updaterViewModel: UpdaterViewModel
     @ObservedObject private var modeManager = ModeManager.shared
-    @ObservedObject private var starPrompt = GitHubStarPromptCoordinator.shared
-    @State private var isSystemInfoCopied = false
     @State private var isEditingDisplayName = false
     @State private var displayNameDraft = ""
     @AppStorage("dashboardDisplayName") private var dashboardDisplayName: String = ""
@@ -58,14 +53,8 @@ struct DashboardContent: View {
         return descriptor
     }
 
-    init(
-        modelContext: ModelContext,
-        licenseState: LicenseViewModel.LicenseState,
-        onAddLicenseKey: @escaping () -> Void
-    ) {
+    init(modelContext: ModelContext) {
         self.modelContext = modelContext
-        self.licenseState = licenseState
-        self.onAddLicenseKey = onAddLicenseKey
 
         let cachedSummary = DashboardStatsCache.shared.currentSummary()
         let cachedMetadata = DashboardStatsCache.shared.currentMetadata()
@@ -113,7 +102,6 @@ struct DashboardContent: View {
         }
         .onAppear {
             refreshAccessibilityStatus()
-            updaterViewModel.checkForUpdatesIfDue()
             if shouldAutomaticallyPresentAutoLearnFailure {
                 scheduleAutoLearnFailurePresentation()
             }
@@ -233,8 +221,6 @@ struct DashboardContent: View {
 
     private func dashboardMainContent(availableWidth: CGFloat) -> some View {
         VStack(alignment: .leading, spacing: DashboardLayout.sectionSpacing) {
-            licenseStatusMessage
-
             greetingHeader
 
             nameEditorDismissArea {
@@ -253,20 +239,21 @@ struct DashboardContent: View {
                 }
             }
 
+            if hasLoadedStatsSnapshot && statsSummary.totalCount > 0 {
+                nameEditorDismissArea {
+                    DashboardUsageOverviewSection(
+                        overview: statsSummary.usageOverview,
+                        totalWords: statsSummary.totalWords,
+                        dailyActivity: statsSummary.allTimeDailyActivity,
+                        availableWidth: availableWidth
+                    )
+                }
+            }
+
             if !recentDashboardTranscriptions.isEmpty {
                 nameEditorDismissArea {
                     DashboardTranscriptCards(transcriptions: recentDashboardTranscriptions)
                 }
-            }
-
-            Spacer(minLength: DashboardLayout.footerTopSpacing)
-
-            nameEditorDismissArea {
-                HStack {
-                    Spacer()
-                    footerActionsView
-                }
-                .frame(maxWidth: .infinity)
             }
         }
         .frame(width: availableWidth, alignment: .topLeading)
@@ -517,11 +504,7 @@ struct DashboardContent: View {
     ) async {
         do {
             if allowSkipWhenFresh {
-                let shouldRefreshAutomatically =
-                    SessionMetricMigrationService.shared.isRunning
-                    || DashboardStatsCache.shared.shouldRefreshSnapshotAutomatically()
-
-                guard shouldRefreshAutomatically else {
+                guard DashboardStatsCache.shared.shouldRefreshSnapshotAutomatically() else {
                     return
                 }
             }
@@ -546,19 +529,12 @@ struct DashboardContent: View {
                 return
             }
 
-            let shouldAcceptSummary = summary.totalCount > 0 || !SessionMetricMigrationService.shared.isRunning
-
             await MainActor.run {
                 guard generation == dashboardStatsLoadGeneration else {
                     return
                 }
 
                 self.isDashboardStatsRefreshing = false
-
-                guard shouldAcceptSummary else {
-                    return
-                }
-
                 self.statsSummary = summary
                 let metadata = DashboardStatsCache.shared.update(summary)
                 self.statsSnapshotGeneratedAt = metadata.generatedAt
@@ -583,32 +559,6 @@ struct DashboardContent: View {
     }
 
     // MARK: - Sections
-
-    @ViewBuilder
-    private var licenseStatusMessage: some View {
-        switch licenseState {
-        case .unlicensed:
-            TrialMessageView(
-                message: Text("Activate a license to continue using VoiceInk."),
-                type: .licenseRequired,
-                onAddLicenseKey: onAddLicenseKey
-            )
-        case .trial(let daysRemaining):
-            TrialMessageView(
-                message: Text(String(localized: "You have \(daysRemaining) days left in your trial")),
-                type: daysRemaining <= 2 ? .warning : .info,
-                onAddLicenseKey: onAddLicenseKey
-            )
-        case .trialExpired:
-            TrialMessageView(
-                message: nil,
-                type: .expired,
-                onAddLicenseKey: onAddLicenseKey
-            )
-        case .licensed:
-            EmptyView()
-        }
-    }
 
     private var dashboardInsightsView: some View {
         DashboardInsightsView(
@@ -640,100 +590,6 @@ struct DashboardContent: View {
             onViewInsights: openInsightsIfAvailable,
             onReviewCorrections: openAutoLearnReviewPanel
         )
-    }
-
-    @ViewBuilder
-    private var footerStarButtonLabel: some View {
-        if starPrompt.openFailed {
-            footerActionLabel(icon: "exclamationmark.triangle.fill", title: "Couldn't open — try again", color: .orange)
-        } else {
-            switch starPrompt.completionState {
-            case .starred:
-                footerActionLabel(icon: "checkmark", title: "Starred — thank you!", color: AppTheme.Sidebar.license)
-            case .opened:
-                footerActionLabel(icon: "arrow.up.right", title: "GitHub opened", color: AppTheme.Sidebar.fallback)
-            case .none:
-                footerActionLabel(icon: "star", title: "Star on GitHub", color: AppTheme.Sidebar.fallback)
-            }
-        }
-    }
-
-    private var footerActionsView: some View {
-        HStack(alignment: .center, spacing: 12) {
-            if starPrompt.showsFooterStarButton {
-                Button(action: { starPrompt.star() }) {
-                    footerStarButtonLabel
-                }
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: true, vertical: true)
-                .disabled(starPrompt.isStarring || starPrompt.completionState != .none)
-                .animation(.easeInOut(duration: 0.15), value: starPrompt.openFailed)
-            }
-
-            if let availableUpdate = updaterViewModel.availableUpdate {
-                Button(action: updaterViewModel.checkForUpdates) {
-                    footerActionLabel(
-                        icon: "arrow.down.circle.fill",
-                        title: "Update Available",
-                        color: AppTheme.Status.infoStrong
-                    )
-                }
-                .buttonStyle(.plain)
-                .fixedSize(horizontal: true, vertical: true)
-                .disabled(!updaterViewModel.canCheckForUpdates)
-                .help(
-                    String(
-                        format: String(localized: "Open the VoiceInk %@ update"),
-                        availableUpdate.displayVersion
-                    )
-                )
-                .accessibilityLabel("Update Available")
-                .accessibilityValue(Text(verbatim: availableUpdate.displayVersion))
-                .accessibilityHint("Opens the update window")
-                .transition(.move(edge: .trailing).combined(with: .opacity))
-            }
-
-            Button(action: copySystemInfo) {
-                footerActionLabel(
-                    icon: isSystemInfoCopied ? "checkmark" : "doc.on.doc",
-                    title: isSystemInfoCopied ? "Copied!" : "Copy System Info",
-                    color: isSystemInfoCopied ? AppTheme.Sidebar.license : AppTheme.Sidebar.fallback
-                )
-            }
-            .buttonStyle(.plain)
-            .fixedSize(horizontal: true, vertical: true)
-            .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isSystemInfoCopied)
-        }
-        .animation(.easeOut(duration: 0.2), value: updaterViewModel.availableUpdate)
-    }
-
-    @ViewBuilder
-    private func footerActionLabel(icon: String, title: LocalizedStringKey, color: Color) -> some View {
-        HStack(alignment: .center, spacing: 8) {
-            DashboardIconGlyph(systemName: icon, color: color, size: 13, frameSize: 16)
-
-            Text(title)
-                .font(.system(size: 13, weight: .medium))
-                .lineLimit(1)
-                .fixedSize(horizontal: true, vertical: false)
-        }
-        .padding(.horizontal, 14)
-        .frame(height: DashboardLayout.footerButtonHeight)
-        .background(AppCardBackground(cornerRadius: 18))
-    }
-
-    private func copySystemInfo() {
-        SystemInfoService.shared.copySystemInfoToClipboard()
-
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            isSystemInfoCopied = true
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-            withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                isSystemInfoCopied = false
-            }
-        }
     }
 
     private var displayNameBinding: Binding<String> {

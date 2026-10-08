@@ -19,7 +19,6 @@ final class SystemInfoService {
             APP INFORMATION:
             App Version: \(getAppVersion())
             Build Version: \(getBuildVersion())
-            License Status: \(getLicenseStatus())
 
             OPERATING SYSTEM:
             macOS Version: \(ProcessInfo.processInfo.operatingSystemVersionString)
@@ -70,13 +69,6 @@ final class SystemInfoService {
             """
 
         return info
-    }
-
-    func copySystemInfoToClipboard() {
-        let info = getSystemInfoString()
-        let pasteboard = NSPasteboard.general
-        pasteboard.clearContents()
-        pasteboard.setString(info, forType: .string)
     }
 
     private func getAppVersion() -> String {
@@ -236,10 +228,6 @@ final class SystemInfoService {
         @unknown default:
             return "Unknown"
         }
-    }
-
-    private func getLicenseStatus() -> String {
-        LicenseViewModel.shared.diagnosticLicenseStatus
     }
 
     private static func englishTimestamp() -> String {

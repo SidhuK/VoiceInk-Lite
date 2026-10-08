@@ -20,7 +20,7 @@ final class WordReplacementService {
     }
 
     private let logger = Logger(
-        subsystem: "com.prakashjoshipax.voiceink",
+        subsystem: "com.karat.VoiceInkLite",
         category: "WordReplacementService"
     )
     private var cachedRecords: [RuleRecord]?
@@ -29,6 +29,13 @@ final class WordReplacementService {
     private init() {}
 
     func applyReplacements(to text: String, using context: ModelContext) -> String {
+        applyReplacementsCountingMatches(to: text, using: context).text
+    }
+
+    func applyReplacementsCountingMatches(
+        to text: String,
+        using context: ModelContext
+    ) -> (text: String, replacementCount: Int) {
         // `isEnabled` is retained only for store and CloudKit compatibility.
         // Replacement rules are intentionally always active.
         let descriptor = FetchDescriptor<WordReplacement>()
@@ -38,12 +45,12 @@ final class WordReplacementService {
             replacements = try context.fetch(descriptor)
         } catch {
             logger.error("Could not load word replacements: \(error, privacy: .public)")
-            return text
+            return (text, 0)
         }
 
         guard !replacements.isEmpty else {
             logger.debug("Word replacement skipped: no enabled rules")
-            return text
+            return (text, 0)
         }
 
         logger.debug(
@@ -59,6 +66,7 @@ final class WordReplacementService {
         )
 
         var matchedRuleCount = 0
+        var replacementCount = 0
         for rule in rules {
             let original = rule.original
             let replacementText = rule.replacement
@@ -78,7 +86,9 @@ final class WordReplacementService {
                     withTemplate: replacementText
                 )
                 matchedRuleCount += 1
+                replacementCount += matchCount
             } else {
+                let occurrenceCount = caseInsensitiveOccurrenceCount(of: original, in: modifiedText)
                 let replacedText = modifiedText.replacingOccurrences(
                     of: original, with: replacementText, options: .caseInsensitive)
                 guard replacedText != modifiedText else { continue }
@@ -88,6 +98,7 @@ final class WordReplacementService {
                 )
                 modifiedText = replacedText
                 matchedRuleCount += 1
+                replacementCount += max(occurrenceCount, 1)
             }
         }
 
@@ -95,7 +106,19 @@ final class WordReplacementService {
             "Finished word replacement: \(matchedRuleCount, privacy: .public) rule(s) matched; output changed=\(modifiedText != text, privacy: .public)"
         )
 
-        return modifiedText
+        return (modifiedText, replacementCount)
+    }
+
+    private func caseInsensitiveOccurrenceCount(of needle: String, in haystack: String) -> Int {
+        guard !needle.isEmpty else { return 0 }
+
+        var count = 0
+        var searchRange = haystack.startIndex..<haystack.endIndex
+        while let found = haystack.range(of: needle, options: .caseInsensitive, range: searchRange) {
+            count += 1
+            searchRange = found.upperBound..<haystack.endIndex
+        }
+        return count
     }
 
     private func preparedRules(from replacements: [WordReplacement]) -> [PreparedRule] {

@@ -67,7 +67,7 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
     private weak var engine: VoiceInkEngine?
     private var recorder: Recorder?
 
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "RecorderUIManager")
+    private let logger = Logger(subsystem: "com.karat.VoiceInkLite", category: "RecorderUIManager")
 
     init() {}
 
@@ -125,9 +125,9 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
                             await self?.toggleRecorderPanel()
                         }
                     },
-                    onCloseTapped: { [weak self] in
+                    onCancelTapped: { [weak self] in
                         Task { @MainActor in
-                            await self?.dismissRecorderPanel()
+                            await self?.cancelOrDismissRecorderPanel()
                         }
                     },
                     onAssistantFollowUp: { [weak engine] text in
@@ -327,14 +327,18 @@ class RecorderUIManager: ObservableObject, RecorderPanelPresenting {
         }
     }
 
+    func cancelOrDismissRecorderPanel() async {
+        switch engine?.recordingState {
+        case .starting, .recording, .transcribing, .enhancing:
+            await cancelRecording()
+        case .idle, .busy, nil:
+            await dismissRecorderPanel()
+        }
+    }
+
     @objc public func handleDismissRecorderPanelNotification() {
         Task {
-            switch engine?.recordingState {
-            case .starting, .recording, .transcribing, .enhancing:
-                await cancelRecording()
-            case .idle, .busy, nil:
-                await dismissRecorderPanel()
-            }
+            await cancelOrDismissRecorderPanel()
         }
     }
 }

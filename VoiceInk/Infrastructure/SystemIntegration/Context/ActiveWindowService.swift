@@ -8,7 +8,7 @@ class ActiveWindowService: ObservableObject {
     private let browserURLService = BrowserURLService.shared
 
     private let logger = Logger(
-        subsystem: "com.prakashjoshipax.voiceink",
+        subsystem: "com.karat.VoiceInkLite",
         category: "browser.detection"
     )
 

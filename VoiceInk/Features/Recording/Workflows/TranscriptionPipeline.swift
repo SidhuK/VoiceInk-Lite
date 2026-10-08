@@ -26,7 +26,7 @@ class TranscriptionPipeline {
     private let serviceRegistry: TranscriptionServiceRegistry
     private let enhancementService: AIEnhancementService?
     private let delivery = TranscriptionDelivery()
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "TranscriptionPipeline")
+    private let logger = Logger(subsystem: "com.karat.VoiceInkLite", category: "TranscriptionPipeline")
 
     init(
         modelContext: ModelContext,
@@ -66,6 +66,8 @@ class TranscriptionPipeline {
         assistant: AssistantHooks = .inactive
     ) async {
         let model = transcriptionConfiguration.model
+        let targetApp = SessionTargetApp.frontmost()
+        var dictionaryReplacementCount = 0
         var finalText: String?
         var responseError: String?
         var outputForDelivery: OutputRuntimeConfiguration?
@@ -139,7 +141,12 @@ class TranscriptionPipeline {
                 text = ParagraphFormatter.format(text)
             }
 
-            text = WordReplacementService.shared.applyReplacements(to: text, using: modelContext)
+            let replacementResult = WordReplacementService.shared.applyReplacementsCountingMatches(
+                to: text,
+                using: modelContext
+            )
+            text = replacementResult.text
+            dictionaryReplacementCount = replacementResult.replacementCount
             let cleanedText = text
 
             let actualDuration = await AudioFileMetadata.duration(for: audioURL)
@@ -251,7 +258,11 @@ class TranscriptionPipeline {
                     didInsertSessionMetric = try SessionMetricRecorder.recordRecorderSession(
                         transcription: transcription,
                         model: model,
-                        in: modelContext
+                        in: modelContext,
+                        targetApp: targetApp,
+                        dictionaryReplacementCount: dictionaryReplacementCount,
+                        // Assistant replies are answers, not edits of what the user said.
+                        countsEnhancementAsCorrection: responseConfig == nil
                     )
                 } catch {
                     logger.error("Failed to record session metric: \(error, privacy: .public)")

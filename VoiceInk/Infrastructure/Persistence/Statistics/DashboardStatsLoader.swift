@@ -55,6 +55,7 @@ enum DashboardStatsLoader {
             var allTimePeakHours: [Int: DashboardPeakHourAccumulator] = [:]
             var allTimeMonthWords: [Date: Int] = [:]
             var allTimeDayWords: [Date: Int] = [:]
+            var usageOverview = UsageOverviewAccumulator()
             var firstMetricDate: Date?
             let windows = DashboardPeriodWindows()
             let now = windows.now
@@ -164,6 +165,7 @@ enum DashboardStatsLoader {
                     allTimeMonthWords[startOfMonth(for: metric.timestamp, calendar: calendar), default: 0] +=
                         metric.wordCount
                     allTimeDayWords[metricDay, default: 0] += metric.wordCount
+                    usageOverview.add(metric)
 
                     let metricHour = calendar.component(.hour, from: metric.timestamp)
 
@@ -326,7 +328,14 @@ enum DashboardStatsLoader {
                 lastSevenDayPeakHours: Self.peakHoursSummary(from: lastSevenDayPeakHours),
                 lastThirtyDayPeakHours: Self.peakHoursSummary(from: lastThirtyDayPeakHours),
                 thisYearPeakHours: Self.peakHoursSummary(from: thisYearPeakHours),
-                allTimePeakHours: Self.peakHoursSummary(from: allTimePeakHours)
+                allTimePeakHours: Self.peakHoursSummary(from: allTimePeakHours),
+                usageOverview: usageOverview.overview(
+                    streak: DashboardStreakSummary.make(
+                        activeDays: Set(allTimeDayWords.compactMap { day, words in words > 0 ? day : nil }),
+                        now: now,
+                        calendar: calendar
+                    )
+                )
             )
         }
 
@@ -714,6 +723,86 @@ private struct DashboardPeakHourAccumulator {
             audioDuration: audioDuration,
             activeDayCount: activeDays.count
         )
+    }
+}
+
+private struct UsageOverviewAccumulator {
+    private static let minimumSpeechDuration: TimeInterval = 1
+    private static let maximumNamedModes = 2
+
+    var speechWords = 0
+    var speechDuration: TimeInterval = 0
+    var correctedWords = 0
+    var dictionaryFixes = 0
+    var sessionsByCategory: [DashboardAppCategory: Int] = [:]
+    var appBundleIdentifiers: Set<String> = []
+    var wordsByMode: [String: Int] = [:]
+    var wordsWithoutMode = 0
+
+    mutating func add(_ metric: SessionMetric) {
+        if metric.audioDuration >= Self.minimumSpeechDuration, metric.wordCount > 0 {
+            speechWords += metric.wordCount
+            speechDuration += metric.audioDuration
+        }
+
+        correctedWords += max(metric.correctedWordCount ?? 0, 0)
+        dictionaryFixes += max(metric.dictionaryReplacementCount ?? 0, 0)
+
+        if let bundleIdentifier = sanitizedModelName(metric.targetAppBundleIdentifier) {
+            appBundleIdentifiers.insert(bundleIdentifier.lowercased())
+            sessionsByCategory[DashboardAppCategory.category(forBundleIdentifier: bundleIdentifier), default: 0] += 1
+        }
+
+        if let modeName = sanitizedModelName(metric.modeName) {
+            wordsByMode[modeName, default: 0] += metric.wordCount
+        } else {
+            wordsWithoutMode += metric.wordCount
+        }
+    }
+
+    func overview(streak: DashboardStreakSummary) -> DashboardUsageOverview {
+        let wordsPerMinute = speechDuration > 0
+            ? Int((Double(speechWords) / (speechDuration / 60)).rounded())
+            : 0
+
+        let categoryUsage = DashboardAppCategory.allCases.enumerated()
+            .map { index, category in
+                (index, DashboardAppCategoryUsage(category: category, sessionCount: sessionsByCategory[category, default: 0]))
+            }
+            .sorted { lhs, rhs in
+                lhs.1.sessionCount != rhs.1.sessionCount ? lhs.1.sessionCount > rhs.1.sessionCount : lhs.0 < rhs.0
+            }
+            .map(\.1)
+
+        return DashboardUsageOverview(
+            wordsPerMinute: wordsPerMinute,
+            correctedWordCount: correctedWords,
+            dictionaryFixCount: dictionaryFixes,
+            appCategoryUsage: appBundleIdentifiers.isEmpty ? [] : categoryUsage,
+            distinctAppCount: appBundleIdentifiers.count,
+            modeWordShares: modeWordShares(),
+            streak: streak
+        )
+    }
+
+    private func modeWordShares() -> [DashboardModeWordShare] {
+        let rankedModes = wordsByMode
+            .filter { $0.value > 0 }
+            .sorted { lhs, rhs in
+                lhs.value != rhs.value
+                    ? lhs.value > rhs.value
+                    : lhs.key.localizedCaseInsensitiveCompare(rhs.key) == .orderedAscending
+            }
+
+        var shares = rankedModes.prefix(Self.maximumNamedModes).map {
+            DashboardModeWordShare(name: $0.key, words: $0.value)
+        }
+        let remainingWords = rankedModes.dropFirst(Self.maximumNamedModes).reduce(0) { $0 + $1.value }
+            + wordsWithoutMode
+        if remainingWords > 0 {
+            shares.append(DashboardModeWordShare(name: String(localized: "Other"), words: remainingWords))
+        }
+        return shares
     }
 }
 

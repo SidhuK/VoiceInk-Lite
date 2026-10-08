@@ -17,6 +17,10 @@ final class SessionMetric {
     var aiEnhancementModelName: String?
     var enhancementDuration: TimeInterval?
     var enhancementEstimatedTokenCount: Int?
+    var targetAppBundleIdentifier: String?
+    var targetAppName: String?
+    var dictionaryReplacementCount: Int?
+    var correctedWordCount: Int?
 
     init(
         transcriptionId: UUID,
@@ -30,7 +34,11 @@ final class SessionMetric {
         modeName: String?,
         aiEnhancementModelName: String?,
         enhancementDuration: TimeInterval?,
-        enhancementEstimatedTokenCount: Int? = nil
+        enhancementEstimatedTokenCount: Int? = nil,
+        targetAppBundleIdentifier: String? = nil,
+        targetAppName: String? = nil,
+        dictionaryReplacementCount: Int? = nil,
+        correctedWordCount: Int? = nil
     ) {
         self.id = UUID()
         self.transcriptionId = transcriptionId
@@ -45,5 +53,9 @@ final class SessionMetric {
         self.aiEnhancementModelName = aiEnhancementModelName
         self.enhancementDuration = enhancementDuration
         self.enhancementEstimatedTokenCount = enhancementEstimatedTokenCount
+        self.targetAppBundleIdentifier = targetAppBundleIdentifier
+        self.targetAppName = targetAppName
+        self.dictionaryReplacementCount = dictionaryReplacementCount
+        self.correctedWordCount = correctedWordCount
     }
 }

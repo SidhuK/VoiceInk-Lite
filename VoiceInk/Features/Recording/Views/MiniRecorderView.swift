@@ -5,17 +5,19 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     @ObservedObject var recorder: Recorder
     @ObservedObject var assistantSession: AssistantSession
     let onRecordButtonTapped: () -> Void
-    let onCloseTapped: () -> Void
+    let onCancelTapped: () -> Void
     let onAssistantFollowUp: (String) -> Void
     @AppStorage(RecorderDisplaySettingsKeys.showLiveTranscript) private var showLiveTranscript = true
 
     // MARK: - Layout Constants
 
-    private let controlBarHeight: CGFloat = 40
-    private let compactWidth: CGFloat = 184
+    private var compactWidth: CGFloat {
+        (RecorderPillMetrics.edgeInset + RecorderPillMetrics.buttonDiameter + RecorderPillMetrics.waveformGap) * 2
+            + RecorderPillWaveform.width
+    }
     private let expandedWidth: CGFloat = 300
     private let assistantWidth: CGFloat = 520
-    private let compactCornerRadius: CGFloat = 20
+    private let compactCornerRadius: CGFloat = RecorderPillMetrics.height / 2
     private let expandedCornerRadius: CGFloat = 14
 
     // true when live transcript is streaming in during recording
@@ -29,45 +31,79 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         assistantSession.isVisible
     }
 
-    private var shouldShowCloseButton: Bool {
-        hasAssistantResponse && stateProvider.recordingState == .idle && !assistantSession.isBusy
-    }
-
     private var liveAssistantFollowUpText: String {
         guard showLiveTranscript, stateProvider.recordingState == .recording else { return "" }
         return stateProvider.partialTranscript
     }
 
+    private var isCapturingOrProcessing: Bool {
+        switch stateProvider.recordingState {
+        case .starting, .recording, .transcribing, .enhancing:
+            return true
+        case .idle, .busy:
+            return false
+        }
+    }
+
+    private var waveformMode: RecorderPillWaveform.Mode {
+        switch stateProvider.recordingState {
+        case .recording:
+            return .listening
+        case .transcribing, .enhancing, .busy:
+            return .processing
+        case .starting:
+            return .idle
+        case .idle:
+            return assistantSession.isBusy ? .processing : .idle
+        }
+    }
+
+    private var confirmKind: RecorderPillConfirmButton.Kind {
+        switch stateProvider.recordingState {
+        case .starting, .recording:
+            return .confirm
+        case .transcribing, .enhancing, .busy:
+            return .processing
+        case .idle:
+            if assistantSession.isBusy { return .processing }
+            return hasAssistantResponse && assistantSession.canSendFollowUp ? .followUp : .confirm
+        }
+    }
+
+    private var isConfirmEnabled: Bool {
+        switch confirmKind {
+        case .confirm: return stateProvider.recordingState == .recording
+        case .followUp: return true
+        case .processing: return false
+        }
+    }
+
     private var controlBar: some View {
         HStack(spacing: 0) {
-            Group {
-                if shouldShowCloseButton {
-                    RecorderCloseButton(action: onCloseTapped)
-                } else {
-                    RecorderRecordButton(
-                        recordingState: stateProvider.recordingState,
-                        action: onRecordButtonTapped
-                    )
-                }
-            }
-            .padding(.leading, 10)
+            RecorderPillCancelButton(
+                label: isCapturingOrProcessing ? "Cancel recording" : "Close",
+                action: onCancelTapped
+            )
 
-            Spacer(minLength: 0)
+            Spacer(minLength: RecorderPillMetrics.waveformGap)
 
-            RecorderStatusDisplay(
-                currentState: stateProvider.recordingState,
+            RecorderPillWaveform(
+                mode: waveformMode,
                 audioMeterProvider: recorder.audioMeterSnapshot
             )
 
-            Spacer(minLength: 0)
+            Spacer(minLength: RecorderPillMetrics.waveformGap)
 
-            RecorderModeButton(
-                buttonSize: 22,
-                padding: EdgeInsets()
+            RecorderPillConfirmButton(
+                kind: confirmKind,
+                isEnabled: isConfirmEnabled,
+                action: onRecordButtonTapped
             )
-            .padding(.trailing, 12)
         }
-        .frame(height: controlBarHeight)
+        .padding(.horizontal, RecorderPillMetrics.edgeInset)
+        .frame(height: RecorderPillMetrics.height)
+        .contentShape(Rectangle())
+        .contextMenu { RecorderModeMenu() }
     }
 
     private var transcriptSection: some View {

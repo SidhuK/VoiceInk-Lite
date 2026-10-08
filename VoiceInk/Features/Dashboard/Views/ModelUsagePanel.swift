@@ -10,8 +10,6 @@ struct ModelUsagePanel: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } header: {
             ModelInsightPanelHeader(title: "AI Model Usage", onClose: onClose)
-        } footer: {
-            RecommendedModelsFooter()
         }
         .background(AppTheme.Insights.page)
     }
@@ -58,7 +56,7 @@ private struct ModelUsagePanelContent: View {
                 }
                 .padding(.horizontal, 18)
                 .padding(.top, 76)
-                .padding(.bottom, 72)
+                .padding(.bottom, 24)
             }
         } else {
             ModelInsightPanelEmptyState(title: "No model usage for this period")

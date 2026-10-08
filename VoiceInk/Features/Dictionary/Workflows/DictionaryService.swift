@@ -3,7 +3,7 @@ import OSLog
 import SwiftData
 
 enum DictionaryService {
-    private static let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "DictionaryService")
+    private static let logger = Logger(subsystem: "com.karat.VoiceInkLite", category: "DictionaryService")
 
     // MARK: - Vocabulary
 

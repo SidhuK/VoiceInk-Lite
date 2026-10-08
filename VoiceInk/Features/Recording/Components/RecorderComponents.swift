@@ -185,12 +185,13 @@ struct RecorderCloseButton: View {
 struct ProcessingIndicator: View {
     @State private var rotation: Double = 0
     let color: Color
+    var diameter: CGFloat = 12
 
     var body: some View {
         Circle()
             .trim(from: 0.1, to: 0.9)
             .stroke(color, lineWidth: 1.5)
-            .frame(width: 12, height: 12)
+            .frame(width: diameter, height: diameter)
             .rotationEffect(.degrees(rotation))
             .onAppear {
                 withAnimation(.linear(duration: 1).repeatForever(autoreverses: false)) {

@@ -832,7 +832,7 @@ class AIService: ObservableObject {
     }
 
     @MainActor
-    func fetchOpenRouterModelsIfNeededForMigration() async {
+    func fetchOpenRouterModelsIfNeeded() async {
         guard openRouterModelCatalog.isEmpty,
             APIKeyManager.shared.hasAPIKey(forProvider: AIProvider.openRouter.rawValue)
         else {

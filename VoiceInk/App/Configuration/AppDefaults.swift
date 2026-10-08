@@ -118,7 +118,6 @@ enum AutoLearnSettings {
 
 enum OnboardingSettings {
     static let completedV2Key = "hasCompletedOnboardingV2"
-    static let preparedV2Key = "hasPreparedOnboardingV2"
 }
 
 enum AppDefaults {
@@ -126,8 +125,6 @@ enum AppDefaults {
         UserDefaults.standard.register(defaults: [
             // Onboarding & General
             OnboardingSettings.completedV2Key: false,
-            OnboardingSettings.preparedV2Key: false,
-            "enableAnnouncements": true,
 
             // Clipboard
             "restoreClipboardAfterPaste": true,
@@ -163,7 +160,6 @@ enum AppDefaults {
             // UI & Behavior
             "IsMenuBarOnly": false,
             AppAppearancePreference.userDefaultsKey: AppAppearancePreference.system.rawValue,
-            AppLanguagePreference.userDefaultsKey: AppLanguagePreference.systemValue,
             // Enhancement
             "SkipShortEnhancement": false,
             "ShortEnhancementWordThreshold": 3,

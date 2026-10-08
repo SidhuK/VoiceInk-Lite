@@ -44,7 +44,7 @@ extension VoiceInkEngineError: LocalizedError {
                     "The downloaded Core ML model archive might be corrupted. Try deleting the model and downloading it again. Check available disk space."
             )
         case .unknownError:
-            return String(localized: "Please restart the application. If the problem persists, contact support.")
+            return String(localized: "Please restart the application.")
         }
     }
 }

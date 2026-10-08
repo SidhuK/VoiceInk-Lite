@@ -83,7 +83,6 @@ struct GeneralBackup: Codable {
     let isMenuBarOnly: Bool?
     let recorderType: String?
     let appAppearancePreference: String?
-    let appLanguagePreference: String?
     let isTranscriptionCleanupEnabled: Bool?
     let transcriptionRetentionMinutes: Int?
     let isAudioCleanupEnabled: Bool?

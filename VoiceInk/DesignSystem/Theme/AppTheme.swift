@@ -84,6 +84,27 @@ enum AppTheme {
         }
     }
 
+    enum Usage {
+        static let strongest = dynamic(light: (0.04, 0.36, 0.33), dark: (0.33, 0.78, 0.70))
+        static let strong = dynamic(light: (0.12, 0.55, 0.49), dark: (0.21, 0.58, 0.52))
+        static let medium = dynamic(light: (0.42, 0.77, 0.71), dark: (0.14, 0.40, 0.36))
+        static let light = dynamic(light: (0.75, 0.90, 0.87), dark: (0.10, 0.27, 0.25))
+        static let inactive = dynamic(light: (0.79, 0.76, 0.71), dark: (0.20, 0.20, 0.19))
+        static let future = Color.primary.opacity(0.05)
+        static let gaugeTrack = Color.primary.opacity(0.08)
+
+        private static func dynamic(
+            light: (CGFloat, CGFloat, CGFloat),
+            dark: (CGFloat, CGFloat, CGFloat)
+        ) -> Color {
+            Color(nsColor: NSColor(name: nil) { appearance in
+                let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+                let rgb = isDark ? dark : light
+                return NSColor(srgbRed: rgb.0, green: rgb.1, blue: rgb.2, alpha: 1)
+            })
+        }
+    }
+
     enum Sidebar {
         static let dashboard = Color(nsColor: .systemOrange)
         static let modes = Color(nsColor: .systemIndigo)
@@ -92,7 +113,7 @@ enum AppTheme {
         static let dictionary = Color(nsColor: .systemBlue)
         static let transcribeAudio = Color(red: 0.86, green: 0.32, blue: 0.27)
         static let fallback = Color(nsColor: .systemGray)
-        static let license = Color(nsColor: .systemGreen)
+        static let success = Color(nsColor: .systemGreen)
     }
 
     enum Waveform {

@@ -8,14 +8,14 @@ class MiniWindowManager {
     private var panel: MiniRecorderPanel?
 
     private let makeView: () -> AnyView
-    private let logger = Logger(subsystem: "com.prakashjoshipax.voiceink", category: "MiniWindowManager")
+    private let logger = Logger(subsystem: "com.karat.VoiceInkLite", category: "MiniWindowManager")
 
     init(
         engine: VoiceInkEngine,
         recorder: Recorder,
         assistantSession: AssistantSession,
         onRecordButtonTapped: @escaping () -> Void,
-        onCloseTapped: @escaping () -> Void,
+        onCancelTapped: @escaping () -> Void,
         onAssistantFollowUp: @escaping (String) -> Void
     ) {
         self.makeView = {
@@ -25,7 +25,7 @@ class MiniWindowManager {
                     recorder: recorder,
                     assistantSession: assistantSession,
                     onRecordButtonTapped: onRecordButtonTapped,
-                    onCloseTapped: onCloseTapped,
+                    onCancelTapped: onCancelTapped,
                     onAssistantFollowUp: onAssistantFollowUp
                 )
             )
