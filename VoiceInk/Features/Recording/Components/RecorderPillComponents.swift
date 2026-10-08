@@ -178,6 +178,71 @@ struct RecorderPillWaveform: View {
     }
 }
 
+// MARK: - Mode Strip
+
+struct RecorderModeStrip: View {
+    @ObservedObject private var modeManager = ModeManager.shared
+
+    var body: some View {
+        let selectedId = modeManager.currentEffectiveConfiguration?.id
+
+        FlowLayout(spacing: 6) {
+            ForEach(modeManager.enabledConfigurations) { config in
+                RecorderModeChip(config: config, isSelected: config.id == selectedId) {
+                    modeManager.setActiveConfiguration(config)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+}
+
+private struct RecorderModeChip: View {
+    let config: ModeConfig
+    let isSelected: Bool
+    let action: () -> Void
+
+    @State private var isHovering = false
+
+    private var foreground: Color {
+        isSelected ? Color(white: 0.1) : .white.opacity(0.85)
+    }
+
+    private var background: Color {
+        if isSelected { return Color(white: 0.96) }
+        return .white.opacity(isHovering ? 0.18 : 0.10)
+    }
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                ModeIconView(
+                    icon: config.icon,
+                    size: config.icon.kind == .emoji ? 11 : 9.5,
+                    color: foreground
+                )
+                Text(config.name)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(foreground)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 22)
+            .background(Capsule(style: .continuous).fill(background))
+            .contentShape(Capsule(style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: isHovering)
+        .animation(.easeOut(duration: 0.16), value: isSelected)
+        .help(config.name)
+        .accessibilityLabel(Text(config.name))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+}
+
 // MARK: - Mode Menu
 
 struct RecorderModeMenu: View {

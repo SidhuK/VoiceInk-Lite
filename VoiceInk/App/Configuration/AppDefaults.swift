@@ -10,6 +10,7 @@ enum CleanupSettingsKeys {
 
 enum RecorderDisplaySettingsKeys {
     static let showLiveTranscript = "ShowLiveTranscript"
+    static let liveTranscriptOnlyOnHover = "LiveTranscriptOnlyOnHover"
 }
 
 enum CloudTranscriptionSettings {
@@ -147,6 +148,7 @@ enum AppDefaults {
             "AppendTrailingSpace": true,
             "RecorderType": "mini",
             RecorderDisplaySettingsKeys.showLiveTranscript: true,
+            RecorderDisplaySettingsKeys.liveTranscriptOnlyOnHover: true,
             CloudTranscriptionSettings.timeoutKey: CloudTranscriptionSettings.defaultTimeout,
             AutoLearnSettings.isEnabledKey: true,
             AutoLearnSettings.reviewScheduleKey: AutoLearnReviewSchedule.immediately.rawValue,

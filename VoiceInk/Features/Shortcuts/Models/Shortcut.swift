@@ -164,7 +164,8 @@ struct Shortcut: Codable, Equatable {
     {
         var normalizedFlags = flags.shortcutNormalized
 
-        if let keyCode, isFunctionKeyCode(keyCode) {
+        // macOS sets the Fn flag on every F-key and navigation key event, even when Fn is not held.
+        if let keyCode, isFunctionKeyCode(keyCode) || navigationKeyCodes.contains(keyCode) {
             normalizedFlags.remove(.function)
         }
 
@@ -174,6 +175,37 @@ struct Shortcut: Codable, Equatable {
     static func isFunctionKeyCode(_ keyCode: UInt16) -> Bool {
         functionKeyCodes.contains(keyCode)
     }
+
+    /// Keys that are rarely typed on their own, so they can be used as a shortcut without modifiers.
+    /// Covers the key left of "1" on both ANSI (`) and ISO (§) layouts; macOS reports either code
+    /// for that physical key depending on the keyboard type.
+    static func allowsShortcutWithoutModifiers(_ keyCode: UInt16) -> Bool {
+        isFunctionKeyCode(keyCode) || standaloneKeyCodes.contains(keyCode)
+    }
+
+    /// Modifier-only shortcuts that include Fn. macOS runs its own Globe key action when Fn is
+    /// pressed and released without another key, so these can collide with it.
+    var isFunctionModifierShortcut: Bool {
+        kind == .modifierOnly && modifierFlags.contains(.function)
+    }
+
+    private static let standaloneKeyCodes: Set<UInt16> = [
+        UInt16(kVK_ANSI_Grave),
+        UInt16(kVK_ISO_Section),
+    ]
+
+    private static let navigationKeyCodes: Set<UInt16> = [
+        UInt16(kVK_LeftArrow),
+        UInt16(kVK_RightArrow),
+        UInt16(kVK_UpArrow),
+        UInt16(kVK_DownArrow),
+        UInt16(kVK_Home),
+        UInt16(kVK_End),
+        UInt16(kVK_PageUp),
+        UInt16(kVK_PageDown),
+        UInt16(kVK_ForwardDelete),
+        UInt16(kVK_Help),
+    ]
 
     private static let modifierKeyCodes: Set<UInt16> = [
         UInt16(kVK_Shift),
@@ -340,6 +372,7 @@ struct Shortcut: Codable, Equatable {
         UInt16(kVK_ANSI_8): "8",
         UInt16(kVK_ANSI_9): "9",
         UInt16(kVK_ANSI_Grave): "`",
+        UInt16(kVK_ISO_Section): "§",
         UInt16(kVK_ANSI_Minus): "-",
         UInt16(kVK_ANSI_Equal): "=",
         UInt16(kVK_ANSI_LeftBracket): "[",
@@ -414,8 +447,18 @@ private extension NSEvent.ModifierFlags {
         intersection(Self.shortcutRelevant)
     }
 
+    static let hyper: NSEvent.ModifierFlags = [.control, .option, .shift, .command]
+
     var shortcutDisplayTokens: [String] {
         var tokens: [String] = []
+
+        if isSuperset(of: Self.hyper) {
+            tokens.append("Hyper")
+            if contains(.function) {
+                tokens.append("Fn")
+            }
+            return tokens
+        }
 
         if contains(.control) {
             tokens.append("⌃")

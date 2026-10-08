@@ -20,12 +20,14 @@ struct SettingsView: View {
     @AppStorage(AppAppearancePreference.userDefaultsKey) private var appAppearancePreference = AppAppearancePreference
         .system
     @AppStorage(RecorderDisplaySettingsKeys.showLiveTranscript) private var showLiveTranscript = true
+    @AppStorage(RecorderDisplaySettingsKeys.liveTranscriptOnlyOnHover) private var liveTranscriptOnlyOnHover = true
     @AppStorage(FinishAndSendSettings.key) private var finishAndSendKey = FinishAndSendKey.none.rawValue
     @State private var showResetOnboardingAlert = false
     @State private var cancelRecordingShortcutRecorderResetID = 0
     @State private var isImportingSettings = false
 
     @State private var isRestoreClipboardExpanded = false
+    @State private var showsGlobeKeyNotice = false
 
     var body: some View {
         Form {
@@ -69,10 +71,16 @@ struct SettingsView: View {
                     }
                 }
 
+                if showsGlobeKeyNotice {
+                    GlobeKeyConflictNotice()
+                }
+
             } header: {
                 HStack(spacing: 4) {
                     Text("Shortcuts")
-                    InfoTip("Supports keyboard combinations and mouse buttons.")
+                    InfoTip(
+                        "Supports key combinations, mouse buttons, single modifier keys such as Fn or Right ⌘, Hyper (⌃⌥⇧⌘), F-keys, and the ` or § key on its own."
+                    )
                 }
             }
 
@@ -204,6 +212,15 @@ struct SettingsView: View {
                         InfoTip("Shows live text while recording with realtime models.")
                     }
                 }
+
+                if showLiveTranscript {
+                    Toggle(isOn: $liveTranscriptOnlyOnHover) {
+                        HStack(spacing: 4) {
+                            Text("Only Show Live Text on Hover")
+                            InfoTip("Keeps the recorder compact while you talk. Hover over the recorder to reveal the live text.")
+                        }
+                    }
+                }
             }
 
             Section("General") {
@@ -272,6 +289,16 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
+        .onAppear(perform: refreshGlobeKeyNotice)
+        .onReceive(NotificationCenter.default.publisher(for: ShortcutStore.shortcutDidChange)) { _ in
+            refreshGlobeKeyNotice()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshGlobeKeyNotice()
+        }
+        .onChange(of: recordingShortcutManager.secondaryRecordingShortcut) { _, _ in
+            refreshGlobeKeyNotice()
+        }
         .alert("Reset Onboarding", isPresented: $showResetOnboardingAlert) {
             Button("Cancel", role: .cancel) {}
             Button("Reset", role: .destructive) {
@@ -288,6 +315,14 @@ struct SettingsView: View {
         keyCode: UInt16(kVK_Escape),
         modifierFlags: []
     )
+
+    private func refreshGlobeKeyNotice() {
+        var actions = ShortcutAction.globalUtilityActions + [.primaryRecording]
+        if recordingShortcutManager.secondaryRecordingShortcut != .none {
+            actions.append(.secondaryRecording)
+        }
+        showsGlobeKeyNotice = GlobeKeySystemAction.conflicts(withShortcutsFor: actions)
+    }
 
     @ViewBuilder
     private func shortcutModePicker(binding: Binding<RecordingShortcutManager.Mode>) -> some View {

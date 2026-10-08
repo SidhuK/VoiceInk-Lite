@@ -8,6 +8,9 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     let onCloseTapped: () -> Void
     let onAssistantFollowUp: (String) -> Void
     @AppStorage(RecorderDisplaySettingsKeys.showLiveTranscript) private var showLiveTranscript = true
+    @AppStorage(RecorderDisplaySettingsKeys.liveTranscriptOnlyOnHover) private var liveTranscriptOnlyOnHover = true
+    @State private var isHovering = false
+    @State private var hoverExitTask: Task<Void, Never>?
     /// Bumped on every screen reconfiguration to invalidate the view. The notch metrics below
     /// come from AppKit, which SwiftUI cannot observe on its own, so without this the view keeps
     /// whatever sizes it happened to compute the last time it was rendered.
@@ -29,7 +32,9 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
 
         switch stateProvider.recordingState {
         case .recording:
-            let shouldShowLive = showLiveTranscript && !stateProvider.partialTranscript.isEmpty
+            let shouldShowLive = showLiveTranscript
+                && (isHovering || !liveTranscriptOnlyOnHover)
+                && !stateProvider.partialTranscript.isEmpty
             return shouldShowLive ? .liveText : .active
         case .transcribing, .enhancing:
             return .active
@@ -163,6 +168,24 @@ struct NotchRecorderView<S: RecorderStateProvider & ObservableObject>: View {
                 bottomCornerRadius: displayState == .liveText || displayState == .assistant ? 22 : 16
             )
         )
+        .onHover(perform: updateHover)
+        .onDisappear { hoverExitTask?.cancel() }
+    }
+
+    private func updateHover(_ hovering: Bool) {
+        hoverExitTask?.cancel()
+        if hovering {
+            isHovering = true
+            return
+        }
+
+        // A short grace period stops the pill from collapsing when the pointer
+        // brushes the edge while the frame is still animating.
+        hoverExitTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            isHovering = false
+        }
     }
 
     // MARK: - Main Row

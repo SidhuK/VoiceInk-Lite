@@ -60,7 +60,7 @@ enum ShortcutValidator {
                 return nil
             }
 
-            if Shortcut.isFunctionKeyCode(shortcut.keyCode) {
+            if Shortcut.allowsShortcutWithoutModifiers(shortcut.keyCode) {
                 return nil
             }
 

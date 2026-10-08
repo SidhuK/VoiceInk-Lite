@@ -8,6 +8,10 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     let onCancelTapped: () -> Void
     let onAssistantFollowUp: (String) -> Void
     @AppStorage(RecorderDisplaySettingsKeys.showLiveTranscript) private var showLiveTranscript = true
+    @AppStorage(RecorderDisplaySettingsKeys.liveTranscriptOnlyOnHover) private var liveTranscriptOnlyOnHover = true
+    @ObservedObject private var modeManager = ModeManager.shared
+    @State private var isHovering = false
+    @State private var hoverExitTask: Task<Void, Never>?
 
     // MARK: - Layout Constants
 
@@ -20,11 +24,20 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
     private let compactCornerRadius: CGFloat = RecorderPillMetrics.height / 2
     private let expandedCornerRadius: CGFloat = 14
 
-    // true when live transcript is streaming in during recording
+    // true when live transcript is streaming in during recording and should be on screen
     private var hasLiveTranscript: Bool {
         showLiveTranscript
+            && (isHovering || !liveTranscriptOnlyOnHover)
             && stateProvider.recordingState == .recording
             && !stateProvider.partialTranscript.isEmpty
+    }
+
+    private var showsModeStrip: Bool {
+        isHovering && !modeManager.enabledConfigurations.isEmpty
+    }
+
+    private var isExpanded: Bool {
+        hasLiveTranscript || showsModeStrip
     }
 
     private var hasAssistantResponse: Bool {
@@ -106,12 +119,33 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
         .contextMenu { RecorderModeMenu() }
     }
 
-    private var transcriptSection: some View {
+    private var expandedSection: some View {
         VStack(spacing: 0) {
             if hasLiveTranscript {
                 LiveTranscriptView(text: stateProvider.partialTranscript)
                 Divider().background(Color.white.opacity(0.15))
             }
+            if showsModeStrip {
+                RecorderModeStrip()
+                    .transition(.opacity)
+                Divider().background(Color.white.opacity(0.15))
+            }
+        }
+    }
+
+    private func updateHover(_ hovering: Bool) {
+        hoverExitTask?.cancel()
+        if hovering {
+            isHovering = true
+            return
+        }
+
+        // A short grace period stops the pill from collapsing when the pointer
+        // brushes the edge while the frame is still animating.
+        hoverExitTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            isHovering = false
         }
     }
 
@@ -125,18 +159,21 @@ struct MiniRecorderView<S: RecorderStateProvider & ObservableObject>: View {
                 )
                 Divider().background(Color.white.opacity(0.15))
             } else {
-                transcriptSection
+                expandedSection
             }
             controlBar
         }
-        .frame(width: hasAssistantResponse ? assistantWidth : (hasLiveTranscript ? expandedWidth : compactWidth))
+        .frame(width: hasAssistantResponse ? assistantWidth : (isExpanded ? expandedWidth : compactWidth))
         .background(Color.black)
         .clipShape(
             RoundedRectangle(
-                cornerRadius: hasLiveTranscript || hasAssistantResponse ? expandedCornerRadius : compactCornerRadius,
+                cornerRadius: isExpanded || hasAssistantResponse ? expandedCornerRadius : compactCornerRadius,
                 style: .continuous)
         )
-        .animation(.easeInOut(duration: 0.3), value: hasLiveTranscript)
+        .onHover(perform: updateHover)
+        .onDisappear { hoverExitTask?.cancel() }
+        .animation(.easeInOut(duration: 0.25), value: isExpanded)
+        .animation(.easeInOut(duration: 0.25), value: hasLiveTranscript)
         .animation(.easeInOut(duration: 0.3), value: hasAssistantResponse)
         .gesture(WindowDragGesture())
         .allowsWindowActivationEvents()
